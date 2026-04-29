@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ash - Pokémon Adventure</title>
+    <script src="Spritesheet.js"></script>
+    <script src="Teclado.js"></script>
+    <script src="Animacao.js"></script>
+    <script src="Ash.js"></script>
+    <script src="Fundo.js"></script>
+    <script src="Pokebola.js"></script>
+    <script src="Pokemon.js"></script>
+    <script src="EfeitoSparkle.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #f0f0f0;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            background: #FFFFFF;
+        }
+        #info {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            z-index: 10;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            font-family: Arial, sans-serif;
+        }
+        .info-title {
+            font-size: 14px;
+            color: #333;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        .info-text {
+            font-size: 12px;
+            color: #666;
+            line-height: 1.6;
+            margin: 3px 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <div class="info-title">Ash - Pokémon Adventure</div>
+        <div class="info-text">
+            W/↑: Frente | S/↓: Trás<br>
+            A/←: Esquerda | D/→: Direita<br>
+            ESPAÇO: Atirar Pokebola<br>
+        </div>
+    </div>
+    <canvas id="myCanvas" width="1920" height="1080"></canvas>
+    <script>
+        const canvas = document.getElementById('myCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Função para desenhar coração estilo Minecraft
+        function desenharCoracao(ctx, x, y, tamanho, cheio) {
+            ctx.save();
+            ctx.translate(x, y);
+            const p = tamanho / 10;
+            
+            // Fundo escuro (se vazio) ou vermelho escuro (se cheio)
+            ctx.fillStyle = cheio ? '#B00000' : '#333333';
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = p;
+            
+            // Forma do coração em pixel art (aproximado usando linhas)
+            ctx.beginPath();
+            ctx.moveTo(p*5, p*3);
+            ctx.lineTo(p*3, p*1);
+            ctx.lineTo(p*1, p*1);
+            ctx.lineTo(p*0, p*2);
+            ctx.lineTo(p*0, p*5);
+            ctx.lineTo(p*5, p*10);
+            ctx.lineTo(p*10, p*5);
+            ctx.lineTo(p*10, p*2);
+            ctx.lineTo(p*9, p*1);
+            ctx.lineTo(p*7, p*1);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            
+            if (cheio) {
+                // Brilho e cor principal
+                ctx.fillStyle = '#FF0000';
+                ctx.fill();
+                
+                // Brilho pixelado branco/rosa no canto superior esquerdo
+                ctx.fillStyle = '#FFAAAA';
+                ctx.fillRect(p*2, p*2, p*1, p*1);
+                ctx.fillRect(p*1, p*3, p*1, p*2);
+            }
+            ctx.restore();
+        }
+
+        // Gerenciadores de imagens
+        const imagens = {};
+        const fontes = {
+            ash: 'ASH_SPRITE.png',
+            grama: 'GRAMA.png',
+            pokemons: 'POKEMONS.png',
+            sparkles: 'SPARKLES.gif'
+        };
+
+        let carregadas = 0;
+        const total = Object.keys(fontes).length;
+
+        function iniciar() {
+            const teclado = new Teclado(document);
+            const animacao = new Animacao(ctx);
+
+            const fundo = new Fundo(ctx, imagens.grama);
+            const ash = new Ash(ctx, teclado, imagens.ash);
+            
+            const pokebolas = [];
+            const inimigos = [];
+            const efeitos = [];
+
+            // Configurar tiro de pokebola
+            let podeAtirar = true;
+            ash.atirarCallback = () => {
+                if (podeAtirar) {
+                    pokebolas.push(new Pokebola(ctx, ash.x + ash.largura, ash.y + ash.altura/2));
+                    podeAtirar = false;
+                    setTimeout(() => podeAtirar = true, 300); // cooldown
+                }
+            };
+
+            // Loop principal
+            animacao.setCallback(() => {
+                // 1. Atualizar e Desenhar Fundo
+                fundo.atualizar();
+                fundo.desenhar();
+
+                // 2. Spawn de Pokémons
+                if (Math.random() < 0.02) {
+                    inimigos.push(new Pokemon(ctx, imagens.pokemons, 1920, Math.random() * 900));
+                }
+
+                // 3. Atualizar e Desenhar Ash
+                ash.atualizar();
+                ash.desenhar();
+
+                // 4. Atualizar e Desenhar Pokebolas
+                for (let i = pokebolas.length - 1; i >= 0; i--) {
+                    const p = pokebolas[i];
+                    p.atualizar();
+                    p.desenhar();
+                    if (p.excluir) pokebolas.splice(i, 1);
+                }
+
+                // 5. Atualizar e Desenhar Inimigos
+                for (let i = inimigos.length - 1; i >= 0; i--) {
+                    const enemy = inimigos[i];
+                    enemy.atualizar(ash); // Passa o Ash como alvo para o Pokémon seguir
+                    enemy.desenhar();
+
+                    // Colisão com Ash (Dano)
+                    if (ash.invulneravel <= 0 &&
+                        ash.x < enemy.x + enemy.largura - 10 &&
+                        ash.x + ash.largura > enemy.x + 10 &&
+                        ash.y < enemy.y + enemy.altura - 10 &&
+                        ash.y + ash.altura > enemy.y + 10) {
+                        
+                        ash.vida--;
+                        ash.invulneravel = 60; // Fica invulnerável por aprox 1 segundo (60 frames)
+                        enemy.excluir = true; // Remove o Pokémon que causou dano
+                        
+                        // Criar efeito de explosão/brilho no dano também
+                        efeitos.push(new EfeitoSparkle(ctx, ash.x + ash.largura/2, ash.y + ash.altura/2, imagens.sparkles));
+
+                        if (ash.vida <= 0) {
+                            alert("Game Over! Você ficou sem vidas.");
+                            location.reload();
+                        }
+                    }
+
+                    // Colisão com Pokebola
+                    for (let j = pokebolas.length - 1; j >= 0; j--) {
+                        const pb = pokebolas[j];
+                        if (pb.x > enemy.x && pb.x < enemy.x + enemy.largura &&
+                            pb.y > enemy.y && pb.y < enemy.y + enemy.altura) {
+                            
+                            // Criar efeito
+                            efeitos.push(new EfeitoSparkle(ctx, enemy.x + enemy.largura/2, enemy.y + enemy.altura/2, imagens.sparkles));
+                            
+                            // Remover ambos
+                            inimigos.splice(i, 1);
+                            pokebolas.splice(j, 1);
+                            break;
+                        }
+                    }
+
+                    if (enemy && enemy.excluir) inimigos.splice(i, 1);
+                }
+
+                // 6. Atualizar e Desenhar Efeitos
+                for (let i = efeitos.length - 1; i >= 0; i--) {
+                    const ef = efeitos[i];
+                    ef.atualizar();
+                    ef.desenhar();
+                    if (ef.excluir) efeitos.splice(i, 1);
+                }
+
+                // 7. Desenhar HUD (Vidas)
+                for (let i = 0; i < 5; i++) {
+                    desenharCoracao(ctx, 1920 - 200 + (i * 35), 20, 30, i < ash.vida);
+                }
+            });
+
+            animacao.ligar();
+        }
+
+        // Carregamento de assets
+        for (let key in fontes) {
+            imagens[key] = new Image();
+            imagens[key].src = fontes[key];
+            imagens[key].onload = () => {
+                carregadas++;
+                if (carregadas === total) iniciar();
+            };
+        }
+    </script>
+</body>
+</html>
