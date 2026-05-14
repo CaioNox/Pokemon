@@ -37,7 +37,7 @@ class Sprite {
         // Colisão com as bordas da tela (rebote)
         if (this.x < 0 || this.x + this.largura > 1920) {
             this.velocidadeX *= -1;
-        }
+        }   
         if (this.y < 0 || this.y + this.altura > 1080) {
             this.velocidadeY *= -1;
         }
